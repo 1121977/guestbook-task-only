@@ -1,0 +1,20 @@
+.form_element{
+    display: flex;
+    flex-direction: column;
+}
+
+.form_container{
+    width: 550px;
+}
+
+body{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
+
+.gb_table {
+    table-layout: auto;
+    width: 1100px;
+}

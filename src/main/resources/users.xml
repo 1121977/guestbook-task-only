@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Users>
+    <User>
+        <FirstName>Donald</FirstName>
+        <LastName>Duck</LastName>
+        <UserName>dduck</UserName>
+        <Password>SoSecret</Password>
+        <Type>Admin</Type>
+    </User>
+    <User>
+        <FirstName>Scrooge</FirstName>
+        <LastName>McDuck</LastName>
+        <UserName>smcduck</UserName>
+        <Password>NotTelling</Password>
+        <Type>User</Type>
+    </User>
+</Users>

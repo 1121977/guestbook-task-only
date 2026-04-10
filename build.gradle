@@ -1,0 +1,62 @@
+plugins {
+    id 'war'
+    id 'java'
+}
+
+group = 'ru.scr'
+
+java {
+    sourceCompatibility = '21'
+}
+
+// SkillTrack repository
+repositories {
+    maven {
+        allowInsecureProtocol = true
+        url = "http://nexus:8081/repository/maven-public/"
+    }
+}
+
+// Global Repository
+/*
+repositories {
+    mavenCentral()
+}
+*/
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:6.0.3')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation 'org.assertj:assertj-core:3.27.7'
+    testImplementation 'org.mockito:mockito-core:5.23.0'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.23.0'
+    testImplementation 'org.springframework:spring-test'
+
+    implementation platform('org.springframework:spring-framework-bom:7.0.6')
+    implementation 'org.springframework:spring-webmvc'
+    implementation 'org.springframework:spring-context-support'
+    implementation 'org.springframework:spring-jdbc'
+    implementation platform('org.springframework.security:spring-security-bom:7.0.4')
+    implementation "org.springframework.security:spring-security-config"
+    implementation "org.springframework.security:spring-security-web"
+    implementation 'org.freemarker:freemarker:2.3.34'
+    implementation 'com.h2database:h2:2.4.240'
+    implementation 'ch.qos.logback:logback-classic:1.5.32'
+
+    compileOnly 'jakarta.servlet:jakarta.servlet-api:6.1.0'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+tasks.register('buildAndCopyWarToApache', Copy) {
+    from war // shortcut for createJar.outputs.files
+    into "/opt/apache-tomcat-10.1.40/webapps"
+    dependsOn(war)
+}
+
+war {
+    setProperty("archivesBaseName", "guestbook")
+}
