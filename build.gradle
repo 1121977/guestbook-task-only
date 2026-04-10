@@ -10,19 +10,19 @@ java {
 }
 
 // SkillTrack repository
+/*
 repositories {
     maven {
         allowInsecureProtocol = true
         url = "http://nexus:8081/repository/maven-public/"
     }
 }
+*/
 
 // Global Repository
-/*
 repositories {
     mavenCentral()
 }
-*/
 
 dependencies {
     testImplementation platform('org.junit:junit-bom:6.0.3')
