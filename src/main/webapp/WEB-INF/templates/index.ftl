@@ -43,6 +43,7 @@
                 <textarea id="message" name="message"></textarea>
                 <!--input type="text" id="message" name="message"-->
             </div>
+            <input type="hidden" name="${_csrf.parameterName}" value="${_csrf.token}">
             <input type="submit" value="Submit">
         </form>
     </div>

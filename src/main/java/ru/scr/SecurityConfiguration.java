@@ -23,17 +23,9 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.core.io.Resource;
-import org.springframework.http.HttpMethod;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
-import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import ru.scr.security.provider.XmlAuthenticationProvider;
 
@@ -57,8 +49,7 @@ public class SecurityConfiguration {
 				)
 				.httpBasic(withDefaults())
 				.formLogin(withDefaults())
-				.authenticationProvider(authenticationProvider)
-				.csrf(AbstractHttpConfigurer::disable);
+				.authenticationProvider(authenticationProvider);
 		;
 		// @formatter:on
         return http.build();

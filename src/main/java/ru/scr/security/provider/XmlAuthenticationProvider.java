@@ -1,25 +1,17 @@
 package ru.scr.security.provider;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.security.authentication.*;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.authority.AuthorityUtils;
 import org.w3c.dom.Document;
-import org.w3c.dom.Node;
+import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.xpath.XPath;
-import javax.xml.xpath.XPathConstants;
-import javax.xml.xpath.XPathFactory;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.InputStream;
-import java.net.URI;
-import java.util.ArrayList;
 
 public class XmlAuthenticationProvider implements AuthenticationProvider {
 
@@ -37,24 +29,46 @@ public class XmlAuthenticationProvider implements AuthenticationProvider {
         try (InputStream inputStream = userDataResource.getInputStream()) {
             DocumentBuilder builder = builderFactory.newDocumentBuilder();
             Document xmlDocument = builder.parse(inputStream);
-            XPath xPath = XPathFactory.newInstance().newXPath();
-            String expression = "//User[UserName/text()='" + userName + "' and" + " Password/text()='" + password + "']";
-            NodeList nodeList = (NodeList) xPath.compile(expression).evaluate(xmlDocument, XPathConstants.NODESET);
-            if (nodeList.getLength() == 0) {
+            NodeList nodeList = xmlDocument.getElementsByTagName("User");
+            if (!matchesUser(nodeList, userName, password)) {
                 throw new BadCredentialsException("Password is incorrect");
             }
         } catch (BadCredentialsException e) {
             throw e;
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new AuthenticationServiceException("Failed to read authentication data", e);
         }
 
-        Authentication resultAuthentication = new UsernamePasswordAuthenticationToken(authentication.getPrincipal(), authentication.getCredentials(), new ArrayList<>());
+        Authentication resultAuthentication = new UsernamePasswordAuthenticationToken(
+                authentication.getPrincipal(),
+                authentication.getCredentials(),
+                AuthorityUtils.NO_AUTHORITIES
+        );
         return resultAuthentication;
     }
 
     @Override
     public boolean supports(Class<?> authentication) {
         return authentication == UsernamePasswordAuthenticationToken.class;
+    }
+
+    private boolean matchesUser(NodeList users, String userName, String password) {
+        for (int i = 0; i < users.getLength(); i++) {
+            Element user = (Element) users.item(i);
+            String storedUserName = getTagValue(user, "UserName");
+            String storedPassword = getTagValue(user, "Password");
+            if (userName.equals(storedUserName) && password.equals(storedPassword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String getTagValue(Element element, String tagName) {
+        NodeList values = element.getElementsByTagName(tagName);
+        if (values.getLength() == 0 || values.item(0).getTextContent() == null) {
+            return "";
+        }
+        return values.item(0).getTextContent().trim();
     }
 }

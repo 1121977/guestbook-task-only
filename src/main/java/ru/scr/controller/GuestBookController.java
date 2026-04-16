@@ -2,8 +2,6 @@ package ru.scr.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.ModelMap;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -22,18 +20,17 @@ public class GuestBookController {
     private DbServiceNote dbServiceNote;
 
     @RequestMapping(value = "/", method = RequestMethod.GET)
-    public String index(ModelMap model) {
+    public String index(ModelMap model, Authentication authentication) {
         List<Note> list = dbServiceNote.findAll();
         model.put("notes", list);
-        SecurityContext context = SecurityContextHolder.getContext();
-        Authentication authentication = context.getAuthentication();
         String username = authentication.getName();
         model.put("username", username);
         return "index";
     }
 
     @RequestMapping(value = "/save", method = RequestMethod.POST)
-    public RedirectView saveMessage(@ModelAttribute Note note) {
+    public RedirectView saveMessage(@ModelAttribute Note note, Authentication authentication) {
+        note.setUserName(authentication.getName());
         dbServiceNote.saveNote(note);
         return new RedirectView("/", true);
     }
