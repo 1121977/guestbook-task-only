@@ -1,7 +1,5 @@
 package ru.scr.security.provider;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.security.authentication.*;
 import org.springframework.security.core.Authentication;
@@ -12,13 +10,8 @@ import org.w3c.dom.NodeList;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.xpath.XPath;
-import javax.xml.xpath.XPathConstants;
-import javax.xml.xpath.XPathFactory;
-import java.io.File;
-import java.io.FileInputStream;
+import javax.xml.parsers.ParserConfigurationException;
 import java.io.InputStream;
-import java.net.URI;
 import java.util.ArrayList;
 
 public class XmlAuthenticationProvider implements AuthenticationProvider {
@@ -31,22 +24,18 @@ public class XmlAuthenticationProvider implements AuthenticationProvider {
 
     @Override
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {
-        DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();
         String userName = authentication.getName();
         String password = authentication.getCredentials().toString();
         try (InputStream inputStream = userDataResource.getInputStream()) {
-            DocumentBuilder builder = builderFactory.newDocumentBuilder();
+            DocumentBuilder builder = createSecureDocumentBuilder();
             Document xmlDocument = builder.parse(inputStream);
-            XPath xPath = XPathFactory.newInstance().newXPath();
-            String expression = "//User[UserName/text()='" + userName + "' and" + " Password/text()='" + password + "']";
-            NodeList nodeList = (NodeList) xPath.compile(expression).evaluate(xmlDocument, XPathConstants.NODESET);
-            if (nodeList.getLength() == 0) {
-                throw new BadCredentialsException("Password is incorrect");
+            if (!isValidCredentials(xmlDocument, userName, password)) {
+                throw new BadCredentialsException("Invalid username or password");
             }
         } catch (BadCredentialsException e) {
             throw e;
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new AuthenticationServiceException("Authentication backend failure", e);
         }
 
         Authentication resultAuthentication = new UsernamePasswordAuthenticationToken(authentication.getPrincipal(), authentication.getCredentials(), new ArrayList<>());
@@ -56,5 +45,40 @@ public class XmlAuthenticationProvider implements AuthenticationProvider {
     @Override
     public boolean supports(Class<?> authentication) {
         return authentication == UsernamePasswordAuthenticationToken.class;
+    }
+
+    private DocumentBuilder createSecureDocumentBuilder() throws ParserConfigurationException {
+        DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();
+        builderFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        builderFactory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+        builderFactory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+        builderFactory.setXIncludeAware(false);
+        builderFactory.setExpandEntityReferences(false);
+        return builderFactory.newDocumentBuilder();
+    }
+
+    private boolean isValidCredentials(Document xmlDocument, String userName, String password) {
+        NodeList users = xmlDocument.getElementsByTagName("User");
+        for (int i = 0; i < users.getLength(); i++) {
+            Node user = users.item(i);
+            if (!(user instanceof org.w3c.dom.Element userElement)) {
+                continue;
+            }
+
+            String storedUserName = getTagValue(userElement, "UserName");
+            String storedPassword = getTagValue(userElement, "Password");
+            if (userName.equals(storedUserName) && password.equals(storedPassword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String getTagValue(org.w3c.dom.Element parent, String tagName) {
+        NodeList nodes = parent.getElementsByTagName(tagName);
+        if (nodes.getLength() == 0 || nodes.item(0) == null) {
+            return "";
+        }
+        return nodes.item(0).getTextContent();
     }
 }
