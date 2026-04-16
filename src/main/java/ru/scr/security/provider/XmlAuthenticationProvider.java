@@ -1,29 +1,29 @@
 package ru.scr.security.provider;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
-import org.springframework.security.authentication.*;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
 
+import javax.xml.namespace.QName;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathFactory;
-import java.io.File;
-import java.io.FileInputStream;
+import javax.xml.xpath.XPathVariableResolver;
 import java.io.InputStream;
-import java.net.URI;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 public class XmlAuthenticationProvider implements AuthenticationProvider {
 
-    final private Resource userDataResource;
+    private final Resource userDataResource;
 
     public XmlAuthenticationProvider(Resource userDataResource) {
         this.userDataResource = userDataResource;
@@ -31,30 +31,76 @@ public class XmlAuthenticationProvider implements AuthenticationProvider {
 
     @Override
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {
-        DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();
         String userName = authentication.getName();
-        String password = authentication.getCredentials().toString();
+        String presentedPassword = authentication.getCredentials().toString();
+
         try (InputStream inputStream = userDataResource.getInputStream()) {
+            // 1. Secure DocumentBuilder to prevent XXE (XML External Entity) attacks
+            DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();
+            builderFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            builderFactory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            builderFactory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            
             DocumentBuilder builder = builderFactory.newDocumentBuilder();
             Document xmlDocument = builder.parse(inputStream);
+
+            // 2. Setup XPath with a Variable Resolver to prevent Injection
             XPath xPath = XPathFactory.newInstance().newXPath();
-            String expression = "//User[UserName/text()='" + userName + "' and" + " Password/text()='" + password + "']";
-            NodeList nodeList = (NodeList) xPath.compile(expression).evaluate(xmlDocument, XPathConstants.NODESET);
-            if (nodeList.getLength() == 0) {
-                throw new BadCredentialsException("Password is incorrect");
+            MapVariableResolver resolver = new MapVariableResolver();
+            resolver.addVariable("userName", userName);
+            xPath.setXPathVariableResolver(resolver);
+
+            // Parameterized query: prevents an attacker from escaping the string context
+            String expression = "//User[UserName/text()=$userName]";
+            Node userNode = (Node) xPath.compile(expression).evaluate(xmlDocument, XPathConstants.NODE);
+
+            // 3. Validation Logic
+            if (userNode == null) {
+                throw new BadCredentialsException("User not found");
             }
-        } catch (BadCredentialsException e) {
+
+            // Extract the password stored in the XML
+            String storedPassword = xPath.evaluate("Password/text()", userNode);
+
+            // 4. Plaintext Comparison (As requested)
+            if (storedPassword == null || !storedPassword.equals(presentedPassword)) {
+                throw new BadCredentialsException("Invalid password");
+            }
+
+            // Return successful authentication token
+            return new UsernamePasswordAuthenticationToken(
+                    userName, 
+                    null, // Credentials cleared for safety
+                    new ArrayList<>()
+            );
+
+        } catch (AuthenticationException e) {
             throw e;
         } catch (Exception e) {
-            e.printStackTrace();
+            // General catch to prevent leaking system details, but logging the error is advised
+            throw new BadCredentialsException("Authentication error occurred");
         }
-
-        Authentication resultAuthentication = new UsernamePasswordAuthenticationToken(authentication.getPrincipal(), authentication.getCredentials(), new ArrayList<>());
-        return resultAuthentication;
     }
 
     @Override
     public boolean supports(Class<?> authentication) {
-        return authentication == UsernamePasswordAuthenticationToken.class;
+        return UsernamePasswordAuthenticationToken.class.isAssignableFrom(authentication);
+    }
+
+    /**
+     * Helper class to map XPath variables to Java strings safely.
+     * This ensures inputs are treated as data, not as executable code.
+     */
+    private static class MapVariableResolver implements XPathVariableResolver {
+        private final Map<QName, Object> variables = new HashMap<>();
+
+        public void addVariable(String name, Object value) {
+            variables.put(new QName(name), value);
+        }
+
+        @Override
+        public Object resolveVariable(QName variableName) {
+            return variables.get(variableName);
+        }
     }
 }
