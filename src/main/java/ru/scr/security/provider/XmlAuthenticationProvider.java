@@ -32,8 +32,24 @@ public class XmlAuthenticationProvider implements AuthenticationProvider {
     @Override
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {
         DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();
+        
+        try {
+            builderFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            builderFactory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            builderFactory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            builderFactory.setXIncludeAware(false);
+            builderFactory.setExpandEntityReferences(false);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
         String userName = authentication.getName();
         String password = authentication.getCredentials().toString();
+
+        if (userName.contains("'") || userName.contains("\"") || password.contains("'") || password.contains("\"")) {
+            throw new BadCredentialsException("Invalid characters in credentials");
+        }
+
         try (InputStream inputStream = userDataResource.getInputStream()) {
             DocumentBuilder builder = builderFactory.newDocumentBuilder();
             Document xmlDocument = builder.parse(inputStream);

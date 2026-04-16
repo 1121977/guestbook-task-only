@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.servlet.view.RedirectView;
+import org.springframework.web.util.HtmlUtils;
 import ru.scr.model.Note;
 import ru.scr.service.DbServiceNote;
 
@@ -34,6 +35,15 @@ public class GuestBookController {
 
     @RequestMapping(value = "/save", method = RequestMethod.POST)
     public RedirectView saveMessage(@ModelAttribute Note note) {
+        SecurityContext context = SecurityContextHolder.getContext();
+        Authentication authentication = context.getAuthentication();
+        
+        note.setUserName(authentication.getName());
+
+        if (note.getMessage() != null) {
+            note.setMessage(HtmlUtils.htmlEscape(note.getMessage()));
+        }
+
         dbServiceNote.saveNote(note);
         return new RedirectView("/", true);
     }
