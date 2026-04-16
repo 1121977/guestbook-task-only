@@ -37,10 +37,21 @@ public class XmlAuthenticationProvider implements AuthenticationProvider {
         try (InputStream inputStream = userDataResource.getInputStream()) {
             DocumentBuilder builder = builderFactory.newDocumentBuilder();
             Document xmlDocument = builder.parse(inputStream);
+            
             XPath xPath = XPathFactory.newInstance().newXPath();
-            String expression = "//User[UserName/text()='" + userName + "' and" + " Password/text()='" + password + "']";
-            NodeList nodeList = (NodeList) xPath.compile(expression).evaluate(xmlDocument, XPathConstants.NODESET);
-            if (nodeList.getLength() == 0) {
+
+            xPath.setXPathVariableResolver(variableName -> {
+                String name = variableName.getLocalPart();
+                if ("user".equals(name)) return userName;
+                if ("pass".equals(name)) return password;
+                return null;
+            });
+
+            String expression = "//User[UserName/text()=$user and Password/text()=$pass]";
+            
+            NodeList nodeList = (NodeList) xPath.evaluate(expression, xmlDocument, XPathConstants.NODESET);
+            
+            if (nodeList == null || nodeList.getLength() == 0) {
                 throw new BadCredentialsException("Password is incorrect");
             }
         } catch (BadCredentialsException e) {
@@ -49,8 +60,7 @@ public class XmlAuthenticationProvider implements AuthenticationProvider {
             e.printStackTrace();
         }
 
-        Authentication resultAuthentication = new UsernamePasswordAuthenticationToken(authentication.getPrincipal(), authentication.getCredentials(), new ArrayList<>());
-        return resultAuthentication;
+        return new UsernamePasswordAuthenticationToken(authentication.getPrincipal(), authentication.getCredentials(), new ArrayList<>());
     }
 
     @Override
