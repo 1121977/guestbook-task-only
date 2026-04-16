@@ -38,7 +38,12 @@ public class XmlAuthenticationProvider implements AuthenticationProvider {
             DocumentBuilder builder = builderFactory.newDocumentBuilder();
             Document xmlDocument = builder.parse(inputStream);
             XPath xPath = XPathFactory.newInstance().newXPath();
-            String expression = "//User[UserName/text()='" + userName + "' and" + " Password/text()='" + password + "']";
+            xPath.setXPathVariableResolver(variableName -> switch (variableName.getLocalPart()) {
+    case "username" -> userName;
+    case "password" -> password;
+    default -> null;
+});
+String expression = "//User[UserName/text()=$username and Password/text()=$password]";
             NodeList nodeList = (NodeList) xPath.compile(expression).evaluate(xmlDocument, XPathConstants.NODESET);
             if (nodeList.getLength() == 0) {
                 throw new BadCredentialsException("Password is incorrect");
