@@ -1,24 +1,16 @@
 package ru.scr.security.provider;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.security.authentication.*;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.w3c.dom.Document;
-import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.xpath.XPath;
-import javax.xml.xpath.XPathConstants;
-import javax.xml.xpath.XPathFactory;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.InputStream;
-import java.net.URI;
+import javax.xml.parsers.ParserConfigurationException;
 import java.util.ArrayList;
 
 public class XmlAuthenticationProvider implements AuthenticationProvider {
@@ -35,22 +27,50 @@ public class XmlAuthenticationProvider implements AuthenticationProvider {
         String userName = authentication.getName();
         String password = authentication.getCredentials().toString();
         try (InputStream inputStream = userDataResource.getInputStream()) {
+            configureSecureXmlFactory(builderFactory);
             DocumentBuilder builder = builderFactory.newDocumentBuilder();
             Document xmlDocument = builder.parse(inputStream);
-            XPath xPath = XPathFactory.newInstance().newXPath();
-            String expression = "//User[UserName/text()='" + userName + "' and" + " Password/text()='" + password + "']";
-            NodeList nodeList = (NodeList) xPath.compile(expression).evaluate(xmlDocument, XPathConstants.NODESET);
-            if (nodeList.getLength() == 0) {
+            if (!hasMatchingUser(xmlDocument, userName, password)) {
                 throw new BadCredentialsException("Password is incorrect");
             }
         } catch (BadCredentialsException e) {
             throw e;
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new AuthenticationServiceException("Unable to authenticate user from XML", e);
         }
 
         Authentication resultAuthentication = new UsernamePasswordAuthenticationToken(authentication.getPrincipal(), authentication.getCredentials(), new ArrayList<>());
         return resultAuthentication;
+    }
+
+    private boolean hasMatchingUser(Document xmlDocument, String userName, String password) {
+        NodeList users = xmlDocument.getElementsByTagName("User");
+        for (int i = 0; i < users.getLength(); i++) {
+            NodeList userFields = users.item(i).getChildNodes();
+            String userNameValue = null;
+            String passwordValue = null;
+            for (int j = 0; j < userFields.getLength(); j++) {
+                if ("UserName".equals(userFields.item(j).getNodeName())) {
+                    userNameValue = userFields.item(j).getTextContent();
+                }
+                if ("Password".equals(userFields.item(j).getNodeName())) {
+                    passwordValue = userFields.item(j).getTextContent();
+                }
+            }
+            if (userName.equals(userNameValue) && password.equals(passwordValue)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void configureSecureXmlFactory(DocumentBuilderFactory builderFactory) throws ParserConfigurationException {
+        builderFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        builderFactory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+        builderFactory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+        builderFactory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+        builderFactory.setExpandEntityReferences(false);
+        builderFactory.setXIncludeAware(false);
     }
 
     @Override
