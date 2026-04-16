@@ -8,18 +8,18 @@
 </head>
 <body>
     <h1>GuestBook</h1>
-    <h2>Hello, ${username}</h2>
+    <h2>Hello, ${username?html}</h2>
     <table border=2 class="gb_table">
         <#list notes as note>
             <tr>
                 <td>
-                    ${note.message}
+                    ${note.message?html}
                 </td>
                 <td>
                     <table>
                         <tr>
                             <td>
-                                ${note.userName}
+                                ${note.userName?html}
                             </td>
                         </tr>
                          <tr>

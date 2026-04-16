@@ -34,6 +34,10 @@ public class GuestBookController {
 
     @RequestMapping(value = "/save", method = RequestMethod.POST)
     public RedirectView saveMessage(@ModelAttribute Note note) {
+
+        SecurityContext context = SecurityContextHolder.getContext();
+        Authentication authentication = context.getAuthentication();
+        note.setUserName(authentication.getName());
         dbServiceNote.saveNote(note);
         return new RedirectView("/", true);
     }

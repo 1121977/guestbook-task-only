@@ -29,6 +29,21 @@ public class XmlAuthenticationProvider implements AuthenticationProvider {
         this.userDataResource = userDataResource;
     }
 
+    private String escapeXPathString(String value) {
+      
+        if (!value.contains("'")) {
+            return "'" + value + "'";
+        }
+        StringBuilder sb = new StringBuilder("concat(");
+        String[] parts = value.split("'", -1);
+        for (int i = 0; i < parts.length; i++) {
+            if (i > 0) sb.append(",\"'\",");
+            sb.append("'").append(parts[i]).append("'");
+        }
+        sb.append(")");
+        return sb.toString();
+    }
+
     @Override
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {
         DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();
@@ -38,7 +53,7 @@ public class XmlAuthenticationProvider implements AuthenticationProvider {
             DocumentBuilder builder = builderFactory.newDocumentBuilder();
             Document xmlDocument = builder.parse(inputStream);
             XPath xPath = XPathFactory.newInstance().newXPath();
-            String expression = "//User[UserName/text()='" + userName + "' and" + " Password/text()='" + password + "']";
+            String expression = "//User[UserName/text()=" + escapeXPathString(userName) + " and Password/text()=" + escapeXPathString(password) + "]";
             NodeList nodeList = (NodeList) xPath.compile(expression).evaluate(xmlDocument, XPathConstants.NODESET);
             if (nodeList.getLength() == 0) {
                 throw new BadCredentialsException("Password is incorrect");
