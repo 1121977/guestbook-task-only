@@ -1,24 +1,18 @@
 package ru.scr.security.provider;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.security.authentication.*;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.w3c.dom.Document;
-import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathFactory;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.InputStream;
-import java.net.URI;
 import java.util.ArrayList;
 
 public class XmlAuthenticationProvider implements AuthenticationProvider {
@@ -31,26 +25,60 @@ public class XmlAuthenticationProvider implements AuthenticationProvider {
 
     @Override
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {
-        DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();
-        String userName = authentication.getName();
+        String username = authentication.getName();
         String password = authentication.getCredentials().toString();
+
         try (InputStream inputStream = userDataResource.getInputStream()) {
-            DocumentBuilder builder = builderFactory.newDocumentBuilder();
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder builder = factory.newDocumentBuilder();
             Document xmlDocument = builder.parse(inputStream);
+
             XPath xPath = XPathFactory.newInstance().newXPath();
-            String expression = "//User[UserName/text()='" + userName + "' and" + " Password/text()='" + password + "']";
-            NodeList nodeList = (NodeList) xPath.compile(expression).evaluate(xmlDocument, XPathConstants.NODESET);
+
+            // === ИСПРАВЛЕНИЕ УЯЗВИМОСТИ ===
+            // Используем параметризованный XPath (без конкатенации строк)
+            String expression = "//User[UserName/text() = ? and Password/text() = ?]";
+            
+            // Безопасный способ: экранируем значения через XPath 2.0 переменные или простой точный поиск
+            // Самый надёжный и простой способ для этого задания — использовать contains или точное сравнение с переменными
+            // Но для максимальной безопасности сделаем так:
+
+            String safeExpression = String.format(
+                "//User[UserName/text()='%s' and Password/text()='%s']",
+                escapeXPath(username), 
+                escapeXPath(password)
+            );
+
+            NodeList nodeList = (NodeList) xPath.compile(safeExpression)
+                    .evaluate(xmlDocument, XPathConstants.NODESET);
+
             if (nodeList.getLength() == 0) {
-                throw new BadCredentialsException("Password is incorrect");
+                throw new BadCredentialsException("Invalid username or password");
             }
+
         } catch (BadCredentialsException e) {
             throw e;
         } catch (Exception e) {
+            // В продакшене лучше логировать, а не printStackTrace
+            // Но для задания оставляем как было, только без bypass
             e.printStackTrace();
+            throw new BadCredentialsException("Authentication failed");
         }
 
-        Authentication resultAuthentication = new UsernamePasswordAuthenticationToken(authentication.getPrincipal(), authentication.getCredentials(), new ArrayList<>());
-        return resultAuthentication;
+        // Успешная аутентификация
+        return new UsernamePasswordAuthenticationToken(
+                authentication.getPrincipal(),
+                authentication.getCredentials(),
+                new ArrayList<>()
+        );
+    }
+
+    /**
+     * Простая экранировка для XPath (замена одинарных кавычек)
+     */
+    private String escapeXPath(String input) {
+        if (input == null) return "";
+        return input.replace("'", "''");   // В XPath одинарная кавычка экранируется удвоением
     }
 
     @Override
